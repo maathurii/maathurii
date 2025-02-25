@@ -31,8 +31,6 @@ _(Feel free to explore my work and provide feedback! 🚀)_
 If you’d like to learn more about my journey or discuss opportunities, feel free to check out my LinkedIn profile! Let's connect and grow together. 🔬
 I’m always open to **learning opportunities**. If you have any suggestions, resources, or opportunities that align with my interests, feel free to reach out! 
 
-📌 LinkedIn: www.linkedin.com/in/maathurim
-
 <!--
 **maathurii/maathurii** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
 
