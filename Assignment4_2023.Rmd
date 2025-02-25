@@ -1,0 +1,385 @@
+---
+title: "EEB225 Assignment 4"
+author: "Maathuri Manokanthan" 
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r echo = FALSE}
+install.packages("interactions", repos="https://cran.rstudio.com/")
+install.packages("jtools", repos="https://cran.rstudio.com/")
+install.packages("car", repos="https://cran.rstudio.com/")
+
+library(car)
+library(kableExtra)
+library(ggplot2)
+library(interactions)
+library(jtools)
+
+model.aov<-function(lm.model){
+  #sources of variation
+  source.of.variation<-c("Model", "Residuals", "Total")
+  
+  #Sum of Squares
+  
+  outcome.var<-as.matrix(lm.model$model[1])
+  
+  ssm<- sum((lm.model$fitted.values - mean(outcome.var))^2)
+  sse<- sum((outcome.var - lm.model$fitted.values)^2)
+  tss<- ssm + sse
+  
+  sum.of.squares<-c(ssm,sse,tss)
+  
+  #degrees of freedom
+  
+  n<-length(lm.model$fitted.values)
+  p<-length(lm.model$coefficients) - 1
+  
+  df.1<-p
+  df.2<-n-p-1
+  df.total<-n-1
+  
+  df.list<-c(df.1, df.2, df.total)
+  
+  #Mean Square
+  mod.ms<-ssm/df.1
+  mse<-sse/df.2
+  
+  mean.square<-c(mod.ms, mse, NA)
+  
+  #F
+  f.value<-c(mod.ms/mse, NA,NA)
+  
+  #sig
+  p.f<-pf(f.value[1], df1=df.1, df2=df.2, lower.tail=F)
+  
+  sig<-c(p.f,NA,NA)
+  
+  # r squared
+  
+   adj.r2<-c(summary(lm.model)$adj.r.squared, NA, NA)
+   
+  #final models
+  
+  table.prep<-signif(cbind(sum.of.squares,df.list,mean.square,f.value,sig, adj.r2),6)
+  
+  table<-as.table(cbind(source.of.variation,table.prep))
+  return(table)
+}
+
+```
+
+The purpose of this assignment is to give you practice exploring your data, constructing and interpreting linear models including both continuous and categorical predictors, and evaluating those models using diagnostic tests. Lab 9 should provide you with most of the steps and R code to complete this assignment.
+
+You are interested in determining *what influences the body length of hakes*. Using the Hakes dataset, you are going to construct different regression models to see which factors may be related to hake body length.   
+  
+To review what the variables mean, please use Lab 2. The written portion of the assignment should be brief. Please include *at least two* predictor variables in your models. Consider using both continuous and categorical variables. 
+
+Total: 32 marks
+### Explore the data
+
+1) First read in the data. You may also wish to take a look at the data set structure and remind yourself of what the variables are. [1 mark]
+```{r}
+hake <- read.csv("hake_dataset-2.csv")
+```
+
+
+### Setting up the model
+Complete the following questions for each possible explanatory variable in the data set with the outcome variable. [Total: 7 marks] 
+
+2a) Construct appropriate graphs showing the relationship between each explanatory variable (there are 8) and the response variable. [3.5 marks] 
+
+```{r}
+bodylength <- hake$total_length_cm
+
+#Body Length Vs. Hake Family
+ggplot(hake, aes(family,bodylength) ) + geom_boxplot() + 
+  labs(x='Hake Family', y= 'Body length (cm)', 
+       title= 'Comparison of Body Lengths between Hake Families')
+
+#Body Length Vs. Hake Species
+ggplot(hake, aes(species,bodylength) ) + geom_boxplot() + 
+  labs(x='Hake Species', y= 'Body length (cm)', 
+       title= 'Comparison of Body Lengths between Hake Species')
+
+#Body Length Vs. Hake Common Name 
+ggplot(hake, aes(common_name,bodylength) ) + geom_boxplot() + 
+  labs(x='Hake Common Name', y= 'Body length (cm)', 
+       title= 'Comparison of Body Lengths between Hake Common Name')
+
+#Body Length Vs. Hake Geographic Location
+ggplot(hake, aes(geographic_location,bodylength) ) + geom_boxplot() + 
+  labs(x='Hake Geographic Location', y= 'Body length (cm)', 
+       title= 'Comparison of Body Lengths between Hake Geographic Location')
+
+#Body Length Vs. Hake Prey Mass Mean 
+ggplot(hake, aes(x=prey_mass_mean_g, y=bodylength)) + geom_point() + 
+  scale_x_log10() + scale_y_log10() + 
+  labs(x='Hake Prey Mass Mean', y= 'Body length (cm)', 
+       title= 'Comparison of Body Lengths between Hake Prey Mass Mean') 
+
+#Body Length Vs. Hake Prey Mass Sum 
+ggplot(hake, aes(x=prey_mass_sum_g, y=bodylength)) + geom_point() + 
+  scale_x_log10() + scale_y_log10() + 
+  labs(x='Hake Prey Mass Sum', y= 'Body length (cm)', 
+       title= 'Comparison of Body Lengths between Prey Mass Sum')  
+
+#Body Length Vs. Hake Prey Length Mean
+ggplot(hake, aes(x=prey_length_mean_cm, y=bodylength)) + geom_point() + 
+  scale_x_log10() + scale_y_log10() + 
+  labs(x='Hake Prey Length Mean', y= 'Body length (cm)', 
+       title= 'Comparison of Body Lengths between Hake Prey Length Mean')  
+
+#Body Length Vs. Prey Count
+ggplot(hake, aes(x=prey_count, y=bodylength)) + geom_point() + 
+  scale_x_log10() + scale_y_log10() + 
+  labs(x='Hake Prey Count', y= 'Body length (cm)', 
+       title= 'Comparison of Body Lengths between Hake Prey Count')  
+```
+
+2b) Indicate what statistical test would be most appropriate to check whether there is a statistical relationship between each explanatory variable and the response variable (e.g. two-sample t-test). Include results here, with one sentence for each stating whether the result was statistically significant. [3.5 marks]
+
+```{r}
+#Body Length Vs. Hake Family - ANOVA test 
+familyanova <- aov(bodylength~family, data=hake)
+summary(familyanova) 
+
+#Body Length Vs. Hake Species - ANOVA test 
+speciesanova <- aov(bodylength~species, data=hake)
+summary(speciesanova) 
+
+#Body Length Vs. Hake Common Name - ANOVA test 
+commonanova <- aov(bodylength~common_name, data=hake)
+summary(commonanova) 
+
+#Body Length Vs. Hake Geographic Location - ANOVA test 
+locationanova <- aov(bodylength~geographic_location, data=hake)
+summary(locationanova) 
+
+#Body Length Vs. Hake Prey Mass Mean - Linear Regression 
+lm_prey_mass_m <- lm(bodylength ~ prey_mass_mean_g, data=hake)
+summary(lm_prey_mass_m)
+
+#Body Length Vs. Hake Prey Mass Sum - Linear Regression 
+lm_prey_mass_s <- lm(bodylength ~ prey_mass_sum_g, data=hake)
+summary(lm_prey_mass_s)
+
+#Body Length Vs. Hake Prey Length Mean - Linear Regression 
+lm_prey_length <- lm(bodylength ~ prey_length_mean_cm, data=hake)
+summary(lm_prey_length)
+
+#Body Length Vs. Hake Prey Count - Linear Regression 
+lm_prey_count <- lm(bodylength ~ prey_count, data=hake)
+summary(lm_prey_count)
+```
+1) The body length of hakes significantly differs across hake families (p < 0.05).
+2) The body length of hakes significantly differs across hake species (p < 0.05).
+3) The body length of hakes significantly differs across hake common names (p < 0.05).
+4) The body length of hakes significantly differs across geographic locations (p < 0.05).
+5) There is a significant positive relationship between prey mass mean 
+   and body length of hakes (p < 0.05).
+6) There is a significant positive relationship between prey mass sum 
+   and body length of hakes (p < 0.05).
+7) There is a significant positive relationship between prey length mean 
+   and body length of hakes (p < 0.05).
+8) The number of prey items consumed does not significantly affect body length (p > 0.05)
+
+### Building candidate models
+Create two candidate models. Choose whichever variables you think are important to be your explanatory variables (use your answers from question 1 to guide you).  
+Feel free to add some interaction variables. You may wish to construct more than two models to determine which variables are most important, but only report two.
+
+3a) Provide a regression table (`summary()`) for each candidate model showing variable names, unstandardized coefficients, std. errors and p-values. [2 marks] 
+```{r}
+
+#Model 1: Exploring the relationship between prey length and body length depends on the prey type 
+hake$log_total_length_cm <- log(hake$total_length_cm)
+hake$log_prey_length_mean_cm <- log(hake$prey_length_mean_cm)
+
+model1 <- lm(log_total_length_cm ~ prey_mass_mean_g + log_prey_length_mean_cm + species + prey_taxon, data=hake)
+
+summary(model1)
+```
+
+```{r}
+
+#Model 2: Exploring the relationship between species and geographic location influence body length 
+
+model2 <- lm(log_total_length_cm ~ prey_mass_sum_g + prey_count + species * geographic_location, data=hake)
+
+summary(model2)
+
+```
+
+
+3b) Provide a model ANOVA table (`model.aov()`) for each candidate model that has the model, residuals and total with the sum of squares, df, mean squared values, the F-value, significance, and adjusted R-squared value. [2 marks] 
+
+```{r}
+model.aov(model1)
+```
+
+```{r}
+model.aov(model2)
+```
+
+
+4) From the candidate models you created, choose one to be your final model. Provide a justification for your choice. Note: Consider performing all analyses mentioned in this assignment for *both* models to help provide justification. [2 marks]
+
+Model 1 is preferred due to its higher adjusted coefficient of determination, meaningful interaction term and better fit because of its lower residual error and highly significant F-statistic, making it a more reliable model for understanding the factors influencing hake body length. 
+
+*FOR THE REMAINING QUESTIONS ONLY PROVIDE RESULTS FROM YOUR FINAL MODEL (CHOSEN IN QUESTION 3)*
+
+### Interpretation  
+5a) What is the generic statistical hypothesis for *a coefficient* (null and alternate)? [1 mark] 
+
+Null hypothesis: The coefficient doesn't have a significant effect on body length.
+
+Alternate hypothesis: The coefficient does have a significant effect on body length. 
+
+5b) *Interpret* each coefficient in your model. Indicate direction, magnitude and significance. Maximum one sentence per coefficient (Please also include your final table of coefficients here) [3 marks] 
+
+```{r}
+summary(model1)
+```
+1. The baseline body length (log-transformed) when all predictors are zero is 3.090 cm and this is highly significant.
+
+2. For each 1-gram increases in prey mass, the body length increases by 0.000317cm, which is significant. 
+
+3. For every 1-unit increase in the log-transformed prey length, body length increases by 0.158cm, and this is highly significant. 
+
+4. Hakes of Merluccius merluccius have a 0.118cm larger body length compared to the baseline species indicating that its significant. 
+
+5. Hakes of Urophycis regia have a 0.159cm smaller body length compared to the baseline species, which is highly significant. 
+
+6. Hakes of Urophycis tenuis have a 0.382cm larger body length compared to the baseline species, and this effect is highly significant. 
+
+7. Hakes of Urophsis chuss have a 0.163cm larger body length compared to the baseline species, and this result is highly significant. 
+
+8. The type of prey being invertebrate increases body length by 0.072cm, and this effect is statistically significant. 
+
+9. The interaction between Merluccius merluccius and prey being invertebrate is undefined. 
+
+10. The effect of prey size on body length for Urophycis regia is significantly higher when the prey is invertebrate with high significance.
+
+11. The effect of prey size on body length for Urophycis tenuis is marginally significant when the prey is invertebrate. 
+
+12. The effect of prey size on body length for Urophysis chuss is significantly higher when the prey is invertebrate. 
+
+These questions relate to your model ANOVA table. [Total: 3 marks]
+6a) What is the statistical hypothesis for the overall model (null and alternate)? [1 mark]
+
+ Null Hypothesis: All predictors have no effect on the response variable. 
+ Alternate Hypothesis: At least one predictor has a significant effect on the response variable. 
+ 
+6b) Which test-statistic is testing this hypothesis? [1 mark]
+
+ The F-statistic tests the hypothesis- compares the variance explained by the model to the unexplained variance. 
+ 
+6c) What does the adjusted R^2 value tell you? Interpret the value given to you in your model. [1 mark]
+ The adjusted R value is 0.4787 means that 47.87% of the variation in body length is explained by the model, indicating a moderate fit. 
+
+### Evaluating assumptions
+
+7a) Two assumptions of a linear model are normality of residuals and no multicollinearity. Does your model violate these assumptions? [2 marks]
+
+The histogram suggests that the residuals follow an approximately normal distribution, so the normality assumption is not violated. Based on the VIF values, there is no multicollinearity because each value has a VIF that is much lower than 5.
+
+Assess the normality of residuals using appropriate plots:
+```{r}
+residuals_model1 <- residuals(model1)
+hist(residuals_model1, main="Histogram of Residuals for Model 1", xlab="Residuals", ylab="Frequency")
+```
+
+Assess multicollinearity using `vif()` (a vif > 5 indicates high correlation). 
+```{r}
+vif(model1)
+```
+
+7b) Now name two other assumptions of a linear model and test to see if your model violates them. Justify each answer. Limit your answer to one or two sentences per point. Please include graphs and test results where appropriate. [2 marks]
+
+```{r}
+#Testing for Homeoscedasticity 
+plot(fitted(model1),residuals(model1))
+abline(h=0, col='red')
+
+#Testing for Independence
+durbinWatsonTest(model1)
+```
+The residuals vs. fitted values plot shows that the residuals are tightly clustered within the 3.0-4.0 range on the x-axis and -0.5 to 0.5 on the y-axis, with no discernible pattern or funnel shape. This indicates that the variance of the residuals is approximately constant, and the assumption of homeoscedasticity is not violated.
+
+The Durbin-Watson test yielded a statistic of 1.742513 and a significant p-value of 0, indicating positive autocorrelation in the residuals. This suggests that the assuption of independence is violated, likely due to omitted ecological variables or clustering within the data.            
+
+### Checking your residuals
+8) Check for outliers and look for patterns in your residuals. Provide one or two sentences describing each plot. [2 marks]
+Provide one residual plot:
+```{r}
+plot(fitted(model1), residuals(model1), main="Residuals vs Fitted", xlab="Fitted Values", ylab="Residuals")
+abline(h=0, col="red")
+```
+The residuals are tightly clustered around zero, with no obvious pattern or funnel shape. This suggests that the assumptions of linearity and homoscedasticity are satisfied. There is an outlier that exists but could be a result of data collection error. 
+
+and one normal quantile plot:
+```{r}
+qqnorm(residuals(model1), main="Normal Q-Q Plot")
+qqline(residuals(model1), col="red")
+```
+The Q-Q plot shows that most of the residuals are closely aligned with the diagonal line, indicating that the residuals are approximately normally distributed in the middle. However, there is a deviation at the bottom left, suggesting heavy tails on the negative side, which indicates that there are more extreme negative residuals than expected. 
+
+### Evaluating your model
+9) In a few sentences, evaluate your model. Describe at least one good aspect and one drawback of your model. [3 marks]
+The model effectively captures the general relationship between the predictors and the response variable, as evidenced by the absence of major issues with homoscedasticity and the residuals being approximately normally distributed in the Q-Q plot. 
+However, the model shows positive autocorrelation in the residuals, as indicated by the Durbin-Watson test. This suggests that the model fails to account for some important structure in the data, potentially due to omitted variables or clustering, leading to a violation of the independence of residuals assumption. This can affect the model's reliability and interpretation. 
+
+### Calculating an F-value
+10) You are interested in seeing what factors influence the number of bees that visit a plant. You have 100 plants and are able to monitor the number of bees that visit the plant in a day. You take measurements of plant height, the number of flowers and the number of other insects that are present on the plant. You use these variables to construct your model.
+
+The sum of squares has already been calculated for you. Please complete the rest of the calculations for the table using the code below as a scaffold. Values you need to calculate are indicated. It may be helpful to write out the model for yourself. [2 marks]
+
+```{r}
+  #sources of variation
+  source.of.variation<-c("Model", "Residuals", "Total")
+  #sum of squares
+  sum.of.squares<-c(29.1,1954.6,1983.7)
+  
+  #degrees of freedom
+  #You'll need to calculate the number of degrees of freedom for the model and for the residuals
+  n<-100 #total number of observations
+  p<-3 #number of predictors (plant height, flowers, insects)
+  
+  df.1<-p
+  df.2<-n-p-1
+  df.total<-n-1
+  
+  df<-c(df.1, df.2, df.total)
+  
+  #Mean Square
+  #calculate model MS and MS error
+  mod.ms<-sum.of.squares[1]/df.1 
+  mse<- sum.of.squares[2]/df.2
+  
+  mean.square<-c(mod.ms, mse, NA)
+  
+  #F
+  #Calculate F value
+  calc.f <- mod.ms/mse
+  f.value<-c(calc.f, NA,NA)
+  
+  #sig
+  p.f<-pf(f.value[1], df1=df.1, df2=df.2, lower.tail=F)
+  
+  sig<-c(p.f, NA, NA)
+  
+   
+  #final models
+  
+  table.prep<-signif(cbind(sum.of.squares, df, mean.square, f.value, sig),5)
+  
+  table<-as.table(cbind(source.of.variation, table.prep))
+  kable(table)
+  
+```

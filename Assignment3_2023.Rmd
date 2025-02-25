@@ -1,0 +1,241 @@
+---
+title: "EEB225 Assignment 3"
+author: "Maathuri Manokanthan"
+output:
+  pdf_document: default
+  html_document: default
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(car)
+```
+30 marks total
+
+## Introduction
+**Goal:** The goal of this assignment is to use t-tests to answer the following two questions:  
+
+    1) Do the two families of hakes, Merlucciidae and Phycidae, have different body lengths? 
+    2) Does burning impact soil dry mass? This 2nd question can be answered by analysis of data 
+    in a second data set that is posted called soil_burn. 
+
+By all means, work with classmates on this assignment though the final written copy should be done independently.   
+
+**Organizing your data:** Do your analysis using this RMardown document as a scaffold. Use the Hakes dataset to answer this first question above and the soil_burn data to answer the second question above. The soil_burn data is a dataset which shows the effect of burning on soil dry mass. It is based on an experiment conducted by [Johnson et. al (2023)](https://doi.org/10.1038/s41559-023-02135-4) where they used burn simulations on boreal forest soil from Wood Buffalo National Park, Canada to investigate the effect of burning on soil properties.  
+
+**Data Analysis:** Use the appropriate t-test to answer each study question. Be sure to read Chapter 12 of your textbook, using it as a guide for making decisions about which test to use to analyze your data and how to examine your data with regard to test assumptions.  
+
+**Written Report:** Each test should be summarized briefly. Follow the outline of the RMarkdown document.
+
+### Question 1: Do the two families of hakes, Merlucciidae and Phycidae, have different body lengths?
+```{r}
+#Import the data
+hake <- read.csv("hake_dataset-2.csv")
+soil <- read.csv("soil_burn.csv")
+```
+
+#### Introduction
+1. In 1-2 sentences state the purpose of the analysis. Be sure to identify the response and explanatory variables. [2 marks]  
+ The purpose of the analysis is to determine whether there is a significant difference in body length (response variable) between the two hake families (explanatory variable). This will help assess if family type influences hake body length. 
+ 
+2. Explore the data. Examine a summary of the data frame, the types of variables and the number of observations in each group [1 mark]
+```{r}
+summary(hake)
+class(hake$individual_id)
+class(hake$species)
+class(hake$common_name)
+class(hake$family)
+class(hake$total_length_cm)
+class(hake$prey_taxon)
+class(hake$prey_mass_mean_g)
+class(hake$prey_mass_sum_g)
+class(hake$prey_length_mean_cm)
+class(hake$prey_count)
+class(hake$geographic_location)
+table(hake$family)
+```
+
+#### Statistical methods
+
+3. What test should you use? Provide the code below. [1 mark]
+
+```{r}
+#Welch's two sample t-test
+bodylength <- (hake$total_length_cm)
+family <- (hake$family)
+t.test(bodylength ~ family, hake=hake, var.equal = FALSE)
+```
+
+4. What are the key assumptions of the test?  [1 mark]
+The key assumption of this test is that the standard deviation of both populations aren't the same. 
+
+5.  How does your data meet or violate these test assumptions? Where applicable, assess normality visually by creating histograms of the variables by group. If applicable, use the appropriate test to evaluate equality of variance. State which test(s) you performed and interpret their results. [2 marks]
+
+```{r}
+#If necessary, create histograms and interpret them below
+ggplot(hake, aes(x = bodylength, fill = family)) + geom_histogram() + 
+  labs(x='Body length (cm)', y= 'Frequency')
+```
+By looking at the stacked histogram above, we can see that it's left-skewed and that the Phycidae family shows more spread in body lengths, suggesting greater variance within that family. This visual difference in variability justifies using Levene's test to assess if the body length variances differ significantly between the 2 families, as it's robust against non-normal data. 
+
+```{r}
+#If necessary, test equality of variances and interpret below
+leveneTest(bodylength ~ family) 
+```
+After completing the Levene's test, we can see that the calculated p-value is 
+2.2e-16, which is significantly less than 0.05. Since the p-value is 
+significantly smaller, I can reject the null hypothesis of equal variances. This
+means that the variances in body lengths between the 2 hake families are 
+significantly different. Based on this result, I should use the Welch's t-test
+for comparing the means, as it doesn't assume equal variances. 
+
+6. State your statistical hypotheses. (These are the hypotheses which identify the parameters of interest). [1 point]  
+
+Null hypothesis: The variances in body length between the two hake families are equal. 
+
+Alternative hypothesis: The variances in body length between the two hake families are not equal. 
+
+#### Results
+7. Show your data using boxplots. Make sure you include a title and that the axes are properly labeled. [2 points]
+
+```{r}
+hake$family <- factor(hake$family)
+ggplot (hake, aes(hake$family,bodylength)) + geom_boxplot() + 
+  labs(x='Hake Family', y= 'Body length (cm)', 
+       title= 'Comparison of Body Lengths between Hake Families')
+```
+
+8. Summarize your sample statistics in a table such as shown in Table 12.3-1 on page 335 of your textbook [2 points]. 
+```{r}
+sample_mean_m <- mean(hake$total_length_cm[hake$family == "Merlucciidae"])
+sample_mean_p <- mean(hake$total_length_cm[hake$family == "Phycidae"])
+
+
+sample_sd_m <-sd(hake$total_length_cm[hake$family == "Merlucciidae"])
+sample_sd_p <- sd(hake$total_length_cm[hake$family == "Phycidae"])
+
+sample_size_m <- length(hake$total_length_cm[hake$family == "Merlucciidae"])
+sample_size_p <- length(hake$total_length_cm[hake$family == "Phycidae"])
+
+summary_hake <- data.frame(Family = c ("Merlucciidae", "Phycidae"),
+                           Sample_Mean = c (sample_mean_m, sample_mean_p),
+                           Sample_SD = c (sample_sd_m, sample_sd_p),
+                           Sample_Size = c (sample_size_m, sample_size_p))
+summary_hake
+
+```
+
+#### Interpretation
+
+9. Give the statistical results [1 point]. Since you have already described any results pertaining to tests of assumptions, all you need here is the final test statistic and p-value. You may write this in a sentence.
+
+Based on the Welch Two Sample test, the test statistic is t=-16.841 with 2411 degrees of freedom and the p-value is p < 2.2e-16. 
+
+10. State your statistical conclusions [1 point].
+
+Based on the results of the Welch Two Sample t-test, we reject the null hypothesis that there is no difference in the mean body lengths between the two hake families, indicating that there is a statistically significant difference in the mean body lengths between the 2 families. 
+
+### Question 2: Does burning impact soil dry mass?
+
+#### Introduction
+11. In 1-2 sentences state the purpose of the analysis. Be sure to identify the response and explanatory variables. [2 marks]  
+  The purpose of the analysis is to determine the effect of burning on soil dry mass. The response variable is the soil dry mass and the explanatory variable is the burning treatment applied to the soil. 
+  
+12. Explore the data. Examine a summary of the data frame, the types of variables and the number of observations in each group. [1 mark]
+```{r}
+summary(soil)
+class(soil$id)
+class(soil$group)
+class(soil$mass_g)
+table(soil$group)
+```
+
+#### Statistical methods
+
+13. What test should you use? Provide the code below. [1 mark]
+
+```{r}
+#Paired t-test
+pre_mass <- soil$mass_g[soil$group == "pre"]
+post_mass <- soil$mass_g[soil$group == "post"]
+
+t.test(pre_mass, post_mass, paired = TRUE)
+```
+
+14. What are the key assumptions of the test?  [1 mark]
+The key assumption of this test is that the paired differences have a normal distribution in the population. 
+
+15. How does your data meet or violate these test assumptions? Where applicable, assess normality visually by creating histograms of the variables by group. If applicable, use the appropriate test to evaluate equality of variance. State which test(s) you performed and interpret their results. [2 marks]
+
+```{r}
+#If necessary, create histograms and interpret them below
+pre_mass <- soil$mass_g[soil$group == "pre"]
+post_mass <- soil$mass_g[soil$group == "post"]
+diff_mass <- pre_mass - post_mass
+diff_data <- data.frame(diff_mass)
+
+ggplot(diff_data, aes(x=diff_mass), fill=group) + geom_histogram() + 
+  labs(x='Difference in Mass (Pre - Post; cm)', y= 'Frequency')
+
+
+```
+After completing the paired t-test and creating a histogram based on the difference between the pre- and post-soil mass measurements, we observe the data is skewed to the right. This right-skewness suggests that the distribution of the differences does not meet the assumption of normality required for the paired t-test to be valid. A variance test isn't required as a paired t-test primarily focuses on the differences between the different soil mass measurements rather than the variance. 
+
+```{r}
+#If necessary, test equality of variances and interpret below
+```
+
+
+16. State your statistical hypotheses. (These are the hypotheses which identify the parameters of interest). [1 point]  
+
+Null hypothesis: There is no difference in the mean mass between the pre-and post-soil conditions. 
+
+Alternative Hypothesis: There is a difference in the mean mass between the pre-and post-soil conditions. 
+
+#### Results
+17. Show your data using boxplots. Make sure you include a title the axes are properly labeled. [2 points]
+
+```{r}
+soil$group <- factor(soil$group)
+ggplot (soil, aes(soil$group,mass_g)) + geom_boxplot() + 
+  labs(x='Soil Type', y= 'Mass (g)', 
+       title= 'Comparison of Mass between Soil Pre and Post')
+```
+
+18. Summarize your sample statistics in a table such as shown in Table 12.3-1 on page 335 of your textbook [2 points]. 
+```{r}
+sample_mean_pre <- mean(soil$mass_g[soil$group == "pre"])
+sample_mean_post <- mean(soil$mass_g[soil$group == "post"])
+
+
+sample_sd_pre <- sd(soil$mass_g[soil$group == "pre"])
+sample_sd_post <- sd(soil$mass_g[soil$group == "post"])
+
+sample_size_pre <- length(soil$mass_g[soil$group == "pre"])
+sample_size_post <- length(soil$mass_g[soil$group == "post"])
+
+summary_soil <- data.frame(Family = c ("Pre-Burn", "Post-Burn"),
+                           Sample_Mean = c (sample_mean_pre, sample_mean_post),
+                           Sample_SD = c (sample_sd_pre, sample_sd_post),
+                           Sample_Size = c (sample_size_pre, sample_size_post))
+summary_soil
+```
+
+#### Interpretation
+
+19. Give the statistical results. Since you have already described any results pertaining to tests of assumptions, all you need here is the final test statistic and p-value. [1 point]
+
+Based on the paired t-test, the test statistic is t= 10.233 with 37 degrees of freedom and the p-value is p= 2.443e-12.
+
+20. State your statistical conclusions [1 point].
+
+Based on the results of the paired t-test, we reject the null hypothesis there is no difference in the mean mass between the pre-and post- measurements, indicating a statistically significant difference in the mean mass before and after the intervention. 
+
+21) For *one test only*, include hand calculations of the test statistic. You may either use R or hand write. If you are writing them by hand, please put these on a separate page attached to the end of your report. [2 points]
+
+```{r}
+
+```
+
